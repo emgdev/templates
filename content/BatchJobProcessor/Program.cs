@@ -21,12 +21,13 @@ namespace EMG
         [Argument(1, "Second", "Second argument")]
         public int SecondRequiredArgument { get; }
 
-        [Option(CommandOptionType.SingleValue, LongName = "optional-argument", ShortName="oa", Description="Optional argument")]
+        [Option(CommandOptionType.SingleValue, LongName = "optional-argument", ShortName = "oa", Description = "Optional argument")]
         public string OptionalArgument { get; }
 
         private async Task OnExecuteAsync(CommandLineApplication app)
         {
-            var configuration = CreateConfiguration();
+            var hostingConfiguration = CreateHostingConfiguration();
+            var configuration = CreateConfiguration(hostingConfiguration);
 
             var services = new ServiceCollection();
 
@@ -53,8 +54,25 @@ namespace EMG
             logger.LogInformation(parameters, s => $"Job complete");
         }
 
-        static IConfigurationRoot CreateConfiguration()
+        static IConfigurationRoot CreateHostingConfiguration()
         {
+            var settings = new Dictionary<string, string>
+            {
+
+            };
+
+            var builder = new ConfigurationBuilder();
+            builder.SetBasePath(AppDomain.CurrentDomain.BaseDirectory);
+            builder.AddInMemoryCollection(settings);
+            builder.AddJsonFile("hostsettings.json", true, false);
+
+            return builder.Build();
+        }
+
+        static IConfigurationRoot CreateConfiguration(IConfigurationRoot hostingConfiguration)
+        {
+            var environmentName = hostingConfiguration["Environment"] ?? "Development";
+
             var settings = new Dictionary<string, string>
             {
                 //#if (AddLoggly)
@@ -64,9 +82,11 @@ namespace EMG
             };
 
             var builder = new ConfigurationBuilder();
+            builder.AddConfiguration(hostingConfiguration);
             builder.SetBasePath(AppDomain.CurrentDomain.BaseDirectory);
             builder.AddInMemoryCollection(settings);
             builder.AddJsonFile("appsettings.json", true, false);
+            builder.AddJsonFile($"appsettings.{environmentName}.json", true, false);
             builder.AddEnvironmentVariables();
 
             return builder.Build();

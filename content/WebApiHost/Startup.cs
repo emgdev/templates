@@ -1,16 +1,16 @@
 ﻿//#if (AddNybusBridge)
 using Amazon.SimpleNotificationService;
-using EMG.Common;
+using EMG.Utilities;
 //#endif
 using EMG.Extensions.AspNetCore;
 //#if (AddWcfDiscovery)
-using EMG.Wcf.Discovery;
-using EMG.Wcf.Discovery.Service;
+using System.ServiceModel;
 //#endif
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 //#if (AddNybus)
@@ -21,7 +21,7 @@ namespace WebApiHost
 {
     public class Startup
     {
-        public Startup(IConfiguration configuration, IHostingEnvironment hostingEnvironment)
+        public Startup(IConfiguration configuration, IWebHostEnvironment hostingEnvironment)
         {
             Configuration = configuration;
             HostingEnvironment = hostingEnvironment;
@@ -29,13 +29,13 @@ namespace WebApiHost
 
         public IConfiguration Configuration { get; }
 
-        public IHostingEnvironment HostingEnvironment { get; }
+        public IWebHostEnvironment HostingEnvironment { get; }
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddMvc(ConfigureMvc).SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+            services.AddControllers(ConfigureMvc);
 
-            // Adds support for ASP.NET Core health checks: https://docs.microsoft.com/en-us/aspnet/core/host-and-deploy/health-checks?view=aspnetcore-2.2
+            // Adds support for ASP.NET Core health checks: https://docs.microsoft.com/en-us/aspnet/core/host-and-deploy/health-checks?view=aspnetcore-3.1
             services.AddHealthChecks(); 
 
             // Adds support for JWT authentication
@@ -66,10 +66,11 @@ namespace WebApiHost
             services.AddHostedService<NybusHostedService>();
 //#endif
 //#if (AddWcfDiscovery)
-
             // Configures the WCF Discovery from the current configuration
-            services.AddDiscovery(Configuration);
-            services.AddSingleton<IDiscoveryService, NetTcpDiscoveryService>();
+            services.AddServiceDiscoveryAdapter();
+            services.ConfigureServiceDiscovery(Configuration.GetSection("Discovery"));
+            services.ConfigureServiceDiscovery(options => options.ConfigureDiscoveryAdapterBinding = binding => binding.Security.Mode = SecurityMode.None);
+            services.AddBindingCustomization(binding => binding.Security.Mode = SecurityMode.None);
 //#endif
 //#if (AddNybusBridge || ConfigureAWS)
 
@@ -92,7 +93,7 @@ namespace WebApiHost
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {
@@ -103,17 +104,23 @@ namespace WebApiHost
                 app.UseHsts();
             }
 
-            // Requests matching "/health" are forwarded to the health check engine
-            app.UseHealthChecks("/health", new HealthCheckOptions
-            {
-                AllowCachingResponses = false
-            });
+            app.UseRouting();
 
             // Uses JWT authentication flow
             app.UseJwtAuthentication();
 
             app.UseHttpsRedirection();
-            app.UseMvc();
+
+            app.UseEndpoints(endpoints => 
+            {
+                // Requests matching "/health" are forwarded to the health check engine
+                endpoints.MapHealthChecks("/health", new HealthCheckOptions
+                {
+                    AllowCachingResponses = false
+                });
+
+                endpoints.MapControllers();
+            });
         }
     }
 }

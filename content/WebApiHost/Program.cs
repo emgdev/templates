@@ -7,6 +7,7 @@ using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace WebApiHost
@@ -15,17 +16,20 @@ namespace WebApiHost
     {
         public static async Task Main(string[] args)
         {
-            await CreateWebHostBuilder(args).Build().RunAsync();
+            await CreateHostBuilder(args).Build().RunAsync();
         }
 
-        private static IWebHostBuilder CreateWebHostBuilder(string[] args)
+        private static IHostBuilder CreateHostBuilder(string[] args)
         {
-            return WebHost.CreateDefaultBuilder(args)
-                          .UseContentRoot(AppDomain.CurrentDomain.BaseDirectory)
-                          .ConfigureAppConfiguration(ConfigureAppConfiguration)
-                          .ConfigureLogging(ConfigureLogging)
-                          .ConfigureKestrel(ConfigureKestrel)
-                          .UseStartup<Startup>();
+            return Host.CreateDefaultBuilder(args)
+                        .ConfigureWebHostDefaults(builder => 
+            {
+                builder.UseContentRoot(AppDomain.CurrentDomain.BaseDirectory)
+                        .ConfigureAppConfiguration(ConfigureAppConfiguration)
+                        .ConfigureLogging(ConfigureLogging)
+                        .ConfigureKestrel(ConfigureKestrel)
+                        .UseStartup<Startup>();
+            });
         }
 
         private static void ConfigureLogging(WebHostBuilderContext context, ILoggingBuilder logging)
